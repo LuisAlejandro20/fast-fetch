@@ -2,6 +2,7 @@ use clap::Parser;
 use std::fs;
 use std::path::PathBuf;
 use walkdir::WalkDir;
+use rayon::prelude::*;
 
 #[derive(Parser, Debug)]
 #[command(name = "fast_fetch")]
@@ -20,18 +21,18 @@ fn main() {
 
     println!("Searching for '{}' in '{}'...", args.query, args.path.display());
 
-    for entry in WalkDir::new(&args.path)
+    let files: Vec<PathBuf> = WalkDir::new(&args.path)
         .into_iter()
         .filter_map(|e| e.ok())
-        {
-            if entry.file_type().is_file() {
-                let path = entry.path();
+        .filter(|e| e.file_type().is_file())
+        .map(|e| e.path().to_owned())
+        .collect();
 
-                if let Ok(content) = fs::read_to_string(path) {
-                    if content.contains(&args.query) {
-                        println!("Match found in {}", path.display());
-                    }
-                }
+    files.into_par_iter().for_each(|path| {
+        if let Ok(content) = fs::read_to_string(&path) {
+            if content.contains(&args.query) {
+                println!("Match found in {}", path.display());
             }
         }
+    })
 }
