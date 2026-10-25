@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 use rayon::prelude::*;
+use colored::*;
 
 #[derive(Parser, Debug)]
 #[command(name = "fast_fetch")]
@@ -30,8 +31,19 @@ fn main() {
 
     files.into_par_iter().for_each(|path| {
         if let Ok(content) = fs::read_to_string(&path) {
-            if content.contains(&args.query) {
-                println!("Match found in {}", path.display());
+            for (index, line) in content.lines().enumerate() {
+                if line.contains(&args.query) {
+                    let highlighted = line.replace(
+                        &args.query,
+                        &args.query.red().bold().to_string()
+                    );
+
+                    println!("
+                {}:{} {}",
+                path.display().to_string().cyan(),
+                (index + 1).to_string().yellow(),
+                highlighted)
+                };
             }
         }
     })
