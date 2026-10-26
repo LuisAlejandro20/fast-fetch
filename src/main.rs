@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 use rayon::prelude::*;
+use regex::*;
 use colored::*;
 
 #[derive(Parser, Debug)]
@@ -15,10 +16,24 @@ struct Args {
     /// The directory to search in (defaults to current directory)
     #[arg(default_value = ".")]
     path: PathBuf,
+
+    /// Ignore case sensitivity
+    #[arg(short = 'i', long)]
+    ignore_case: bool,
 }
 
 fn main() {
     let args = Args::parse();
+
+    let escaped_query = regex::escape(&args.query);
+
+    let pattern = if args.ignore_case {
+        format!("(?i){}", escaped_query)
+    } else {
+        escaped_query
+    };
+
+    let re = Regex::new(&pattern).unwrap();
 
     println!("Searching for '{}' in '{}'...", args.query, args.path.display());
 
@@ -32,19 +47,24 @@ fn main() {
     files.into_par_iter().for_each(|path| {
         if let Ok(content) = fs::read_to_string(&path) {
             for (index, line) in content.lines().enumerate() {
-                if line.contains(&args.query) {
-                    let highlighted = line.replace(
-                        &args.query,
-                        &args.query.red().bold().to_string()
-                    );
+                
+                // Check if the regex matches the line
+                if re.is_match(line) {
+                    
+                    // Replace the exact matched text (caps[0]) with colored output, 
+                    // preserving whether the original text was uppercase or lowercase
+                    let highlighted = re.replace_all(line, |caps: &regex::Captures| {
+                        caps[0].red().bold().to_string()
+                    });
 
-                    println!("
-                {}:{} {}",
-                path.display().to_string().cyan(),
-                (index + 1).to_string().yellow(),
-                highlighted)
-                };
+                    println!(
+                        "{}:{} {}",
+                        path.display().to_string().cyan(),
+                        (index + 1).to_string().yellow(),
+                        highlighted
+                    );
+                }
             }
         }
-    })
-}
+    });
+} // End of main
